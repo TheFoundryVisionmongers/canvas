@@ -8,7 +8,6 @@ require (
 	github.com/ByteArena/poly2tri-go v0.0.0-20170716161910-d102ad91854f
 	github.com/adrg/sysfont v0.1.2
 	github.com/benoitkugler/textlayout v0.1.3
-	github.com/benoitkugler/textprocessing v0.0.2
 	github.com/dsnet/compress v0.0.1
 	github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220622232848-a6c407ee30a0
@@ -17,7 +16,6 @@ require (
 	github.com/paulmach/orb v0.7.1
 	github.com/paulmach/osm v0.5.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/tdewolff/argp v0.0.0-20220613210115-e74597c005ab
 	github.com/tdewolff/minify/v2 v2.11.10
 	github.com/tdewolff/parse/v2 v2.6.0
 	github.com/tdewolff/test v1.0.7
@@ -47,6 +45,7 @@ require (
 	github.com/go-text/typesetting v0.0.0-20220411150340-35994bc27a7b // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/goki/freetype v0.0.0-20220119013949-7a161fd3728c // indirect
+	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
