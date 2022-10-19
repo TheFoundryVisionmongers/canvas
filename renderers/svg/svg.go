@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/tdewolff/canvas"
+	canvasFont "github.com/tdewolff/canvas/font"
 	canvasText "github.com/tdewolff/canvas/text"
 )
 
@@ -88,7 +89,7 @@ func (r *SVG) writeFonts() {
 			b := font.SFNT.Data
 			if r.opts.SubsetFonts {
 				glyphIDs := r.fontSubset[font].List()
-				b, _ = font.SFNT.Subset(glyphIDs)
+				b, _ = font.SFNT.Subset(glyphIDs, canvasFont.WriteMinTables)
 			}
 			fmt.Fprintf(r.w, "\n@font-face{font-family:'%s'", font.Name())
 			if font.Style().Weight() != canvas.FontRegular {
@@ -169,7 +170,7 @@ func (r *SVG) RenderPath(path *canvas.Path, style canvas.Style, m canvas.Matrix)
 	}
 	if !strokeUnsupported {
 		if m.IsSimilarity() {
-			scale := math.Sqrt(m.Det())
+			scale := math.Sqrt(math.Abs(m.Det()))
 			style.StrokeWidth *= scale
 			style.DashOffset *= scale
 			dashes := make([]float64, len(style.Dashes))

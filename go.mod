@@ -8,6 +8,7 @@ require (
 	github.com/ByteArena/poly2tri-go v0.0.0-20170716161910-d102ad91854f
 	github.com/adrg/sysfont v0.1.2
 	github.com/benoitkugler/textlayout v0.1.3
+	github.com/benoitkugler/textprocessing v0.0.2
 	github.com/dsnet/compress v0.0.1
 	github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220622232848-a6c407ee30a0
@@ -16,8 +17,9 @@ require (
 	github.com/paulmach/orb v0.7.1
 	github.com/paulmach/osm v0.5.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/tdewolff/minify/v2 v2.11.10
-	github.com/tdewolff/parse/v2 v2.6.0
+	github.com/tdewolff/argp v0.0.0-20221007181215-ebef9ed8a560
+	github.com/tdewolff/minify/v2 v2.12.4
+	github.com/tdewolff/parse/v2 v2.6.4
 	github.com/tdewolff/test v1.0.7
 	github.com/wcharczuk/go-chart/v2 v2.1.0
 	golang.org/x/image v0.0.0-20220617043117-41969df76e82
@@ -45,13 +47,14 @@ require (
 	github.com/go-text/typesetting v0.0.0-20220411150340-35994bc27a7b // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/goki/freetype v0.0.0-20220119013949-7a161fd3728c // indirect
-	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/srwiley/oksvg v0.0.0-20220128195007-1f435e4c2b44 // indirect
 	github.com/srwiley/rasterx v0.0.0-20220615024203-67b7089efd25 // indirect
 	github.com/stretchr/testify v1.7.3 // indirect
+	github.com/tdewolff/minify v2.3.6+incompatible // indirect
+	github.com/tdewolff/parse v2.3.4+incompatible // indirect
 	github.com/tevino/abool v1.2.0 // indirect
 	github.com/yuin/goldmark v1.4.12 // indirect
 	golang.org/x/exp v0.0.0-20220218215828-6cf2b201936e // indirect

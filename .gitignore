@@ -32,4 +32,5 @@ font/tests/*/corpus/*
 renderers/pdf/reader*
 renderers/nvpath
 examples/nvpath
-cmd/pdftext
+cmd/fontinfo/fontinfo
+cmd/pdftext/pdftext
