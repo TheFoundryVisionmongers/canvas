@@ -676,8 +676,17 @@ func (c *Canvas) Fit(margin float64) {
 	c.H = rect.H + 2*margin
 }
 
+type RendererViewer struct {
+	Renderer
+	Matrix
+}
+
+func (r RendererViewer) View() Matrix {
+	return r.Matrix
+}
+
 // Render renders the accumulated canvas drawing operations to another renderer.
-func (c *Canvas) Render(r Renderer) {
+func (c *Canvas) RenderTo(r Renderer) {
 	view := Identity
 	if viewer, ok := r.(interface{ View() Matrix }); ok {
 		view = viewer.View()

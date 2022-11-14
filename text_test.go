@@ -163,7 +163,7 @@ func TestTextBounds(t *testing.T) {
 	rt.Add(face12, "test")
 	text := rt.ToText(4096.0, 4096.0, Left, Top, 0.0, 0.0)
 
-	top, ascent, descent, bottom := text.lines[0].Heights(0, 0)
+	top, ascent, descent, bottom := text.lines[0].Heights(0.0)
 	test.Float(t, top, 1901*1.5)
 	test.Float(t, ascent, 1901*1.5)
 	test.Float(t, descent, 483*1.5)
@@ -184,4 +184,16 @@ func TestTextBounds(t *testing.T) {
 	//test.Float(t, bounds.Y, -13.390625)
 	//test.Float(t, bounds.W, face8.TextWidth("test")+face12.TextWidth("test"))
 	//test.Float(t, bounds.H, 10.40625)
+}
+
+func TestTextBox(t *testing.T) {
+	c := New(100, 100)
+	ctx := NewContext(c)
+	font, err := LoadFontFile("resources/DejaVuSerif.ttf", FontRegular)
+	if err != nil {
+		t.Fatal(err)
+	}
+	face := font.Face(12, Black)
+	ctx.DrawText(0, 0, NewTextBox(face, "\ntext", 100, 100, Left, Top, 0, 0))
+	ctx.DrawText(0, 0, NewTextBox(face, "text\n\ntext2", 100, 100, Left, Top, 0, 0))
 }
