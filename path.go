@@ -14,6 +14,9 @@ import (
 // Tolerance is the maximum deviation from the original path in millimeters when e.g. flatting.
 var Tolerance = 0.01
 
+// RasterizerTolerance is the maximum deviation of the rasterized path from the original in pixels
+var RasterizerTolerance = 0.1
+
 // FillRule is the algorithm to specify which area is to be filled and which not, in particular when multiple subpaths overlap. The NonZero rule is the default and will fill any point that is being enclosed by an unequal number of paths winding clockwise and counter clockwise, otherwise it will not be filled. The EvenOdd rule will fill any point that is being enclosed by an uneven number of paths, whichever their direction.
 type FillRule int
 
@@ -209,10 +212,12 @@ func (p *Path) Coords() []Point {
 	return coords
 }
 
+// Scanner returns a path scanner.
 func (p *Path) Scanner() *PathScanner {
 	return &PathScanner{p, -1}
 }
 
+// ReverseScanner returns a path scanner in reverse order.
 func (p *Path) ReverseScanner() *PathReverseScanner {
 	return &PathReverseScanner{p, len(p.d)}
 }
@@ -1083,42 +1088,6 @@ func (p *Path) SplitAt(ts ...float64) []*Path {
 	return qs
 }
 
-//type intersection struct {
-//	i int     // index into path
-//	t float64 // parametric value
-//}
-//
-//func (p *Path) SplitAtIntersections(q *Path) ([]*Path, []*Path) {
-//	selfIntersect := p == q
-//	ps := []*Path{}
-//	qs := []*Path{}
-//	for _, pp := range p.Split() {
-//		for _, qq := range q.Split() {
-//			qu := []intersection{}
-//			for {
-//				_ = pp
-//				_ = qq
-//				// add to ps
-//			}
-//
-//			if !selfIntersect {
-//				sort.Slice(qu, func(i, j int) bool {
-//					return qu[i].i < qu[j].i || qu[i].i == qu[j].i && qu[i].t < qu[j].t
-//				})
-//
-//				for _, _ = range qu {
-//					// add to qs
-//				}
-//			}
-//		}
-//	}
-//
-//	if selfIntersect {
-//		return ps, ps
-//	}
-//	return ps, qs
-//}
-
 func dashStart(offset float64, d []float64) (int, float64) {
 	i0 := 0 // index in d
 	for d[i0] <= offset {
@@ -1803,14 +1772,13 @@ func (p *Path) ToPDF() string {
 
 // ToRasterizer rasterizes the path using the given rasterizer and resolution.
 func (p *Path) ToRasterizer(ras *vector.Rasterizer, resolution Resolution) {
-	// TODO: use Flatten, but this generates a lot more segments than the rasterizer's flattener!
-	//oldTolerance := Tolerance
-	//Tolerance = 0.1 / resolution.DPMM() // tolerance of 1/10 of a pixel
-	//p = p.Flatten()
-	//Tolerance = oldTolerance
-	p = p.ReplaceArcs()
-
 	dpmm := resolution.DPMM()
+
+	oldTolerance := Tolerance
+	Tolerance = RasterizerTolerance / dpmm // tolerance of 1/10 of a pixel
+	p = p.Flatten()
+	Tolerance = oldTolerance
+
 	dy := float64(ras.Bounds().Size().Y)
 	for i := 0; i < len(p.d); {
 		cmd := p.d[i]
@@ -1819,17 +1787,10 @@ func (p *Path) ToRasterizer(ras *vector.Rasterizer, resolution Resolution) {
 			ras.MoveTo(float32(p.d[i+1]*dpmm), float32(dy-p.d[i+2]*dpmm))
 		case LineToCmd:
 			ras.LineTo(float32(p.d[i+1]*dpmm), float32(dy-p.d[i+2]*dpmm))
-		case QuadToCmd:
-			ras.QuadTo(float32(p.d[i+1]*dpmm), float32(dy-p.d[i+2]*dpmm), float32(p.d[i+3]*dpmm), float32(dy-p.d[i+4]*dpmm))
-		case CubeToCmd:
-			ras.CubeTo(float32(p.d[i+1]*dpmm), float32(dy-p.d[i+2]*dpmm), float32(p.d[i+3]*dpmm), float32(dy-p.d[i+4]*dpmm), float32(p.d[i+5]*dpmm), float32(dy-p.d[i+6]*dpmm))
-		case ArcToCmd:
-			panic("arcs should have been replaced")
-
-		//case QuadToCmd, CubeToCmd, ArcToCmd:
-		//	panic("Béziers and arcs should have been replaced")
 		case CloseCmd:
 			ras.ClosePath()
+		default:
+			panic("quadratic and cubic Béziers and arcs should have been replaced")
 		}
 		i += cmdLen(cmd)
 	}

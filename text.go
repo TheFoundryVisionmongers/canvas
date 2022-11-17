@@ -132,11 +132,11 @@ func (l line) Heights(mode WritingMode) (float64, float64, float64, float64) {
 	if mode == HorizontalTB {
 		for _, span := range l.spans {
 			if span.IsText() {
-				spanAscent, spanDescent, lineSpacing := span.Face.Metrics().Ascent, span.Face.Metrics().Descent, span.Face.Metrics().LineGap
-				top = math.Max(top, spanAscent+lineSpacing)
+				spanTop, spanAscent, spanDescent, spanBottom := span.Face.heights(mode)
+				top = math.Max(top, spanTop)
 				ascent = math.Max(ascent, spanAscent)
 				descent = math.Max(descent, spanDescent)
-				bottom = math.Max(bottom, spanDescent+lineSpacing)
+				bottom = math.Max(bottom, spanBottom)
 			} else {
 				for _, obj := range span.Objects {
 					spanAscent, spanDescent := obj.Heights(span.Face)
@@ -154,18 +154,13 @@ func (l line) Heights(mode WritingMode) (float64, float64, float64, float64) {
 			if span.IsText() {
 				for _, glyph := range span.Glyphs {
 					if glyph.Vertical {
-						width = math.Max(width, span.Face.mmPerEm*float64(glyph.SFNT.GlyphAdvance(glyph.ID)))
+						width = math.Max(width, 1.2*span.Face.mmPerEm*float64(glyph.SFNT.GlyphAdvance(glyph.ID))) // TODO: what left/right padding should upright characters in a vertical layout have?
 					} else {
-						spanAscent, spanDescent, lineSpacing, xHeight := span.Face.Metrics().Ascent, span.Face.Metrics().Descent, span.Face.Metrics().LineGap, span.Face.Metrics().XHeight
-						spanAscent -= xHeight / 2.0
-						spanDescent += xHeight / 2.0
-						if mode == VerticalLR {
-							spanAscent, spanDescent = spanDescent, spanAscent
-						}
-						top = math.Max(top, spanAscent+lineSpacing)
+						spanTop, spanAscent, spanDescent, spanBottom := span.Face.heights(mode)
+						top = math.Max(top, spanTop)
 						ascent = math.Max(ascent, spanAscent)
 						descent = math.Max(descent, spanDescent)
-						bottom = math.Max(bottom, spanDescent+lineSpacing)
+						bottom = math.Max(bottom, spanBottom)
 					}
 				}
 			} else {
@@ -184,14 +179,17 @@ func (l line) Heights(mode WritingMode) (float64, float64, float64, float64) {
 
 // TextSpan is a span of text.
 type TextSpan struct {
-	x         float64
-	Width     float64
-	Face      *FontFace
-	Text      string
-	Objects   []TextSpanObject
-	Glyphs    []canvasText.Glyph
-	Direction canvasText.Direction
-	Rotation  canvasText.Rotation
+	x            float64
+	Width        float64
+	PaddingLeft  float64 // padding for decoration
+	PaddingRight float64
+	Face         *FontFace
+	Text         string
+	Glyphs       []canvasText.Glyph
+	Direction    canvasText.Direction
+	Rotation     canvasText.Rotation
+
+	Objects []TextSpanObject
 }
 
 func (span *TextSpan) IsText() bool {
@@ -200,9 +198,9 @@ func (span *TextSpan) IsText() bool {
 
 type TextSpanObject struct {
 	*Canvas
+	X, Y          float64
 	Width, Height float64
 	VAlign        VerticalAlign
-	Text          string // alternative text represention
 }
 
 func (obj TextSpanObject) Heights(face *FontFace) (float64, float64) {
@@ -222,7 +220,7 @@ func (obj TextSpanObject) Heights(face *FontFace) (float64, float64) {
 
 func (obj TextSpanObject) View(x, y float64, face *FontFace) Matrix {
 	_, bottom := obj.Heights(face)
-	return Identity.Translate(x, y+bottom)
+	return Identity.Translate(x+obj.X, y+obj.Y+bottom)
 }
 
 ////////////////////////////////////////////////////////////////
@@ -317,22 +315,6 @@ func NewTextBox(face *FontFace, s string, width, height float64, halign, valign 
 	return rt.ToText(width, height, halign, valign, indent, lineStretch)
 }
 
-//type faceSpan struct {
-//	start, end int
-//	face       *FontFace
-//}
-//
-//type faceSpans []faceSpan
-//
-//func (spans faceSpans) next(loc int) (*FontFace, int) {
-//	for index, start := range indexer {
-//		if loc < start {
-//			return index - 1
-//		}
-//	}
-//	return len(indexer) - 1
-//}
-
 type indexer []int
 
 func (indexer indexer) index(loc int) int {
@@ -345,7 +327,6 @@ func (indexer indexer) index(loc int) int {
 }
 
 // RichText allows to build up a rich text with text spans of different font faces and fitting that into a box using Donald Knuth's line breaking algorithm.
-// TODO: RichText add support for decoration spans to properly underline the spaces betwee words too
 type RichText struct {
 	*strings.Builder
 	locs   indexer // faces locations in string by number of runes
@@ -391,6 +372,13 @@ func (rt *RichText) SetTextOrientation(orient TextOrientation) {
 
 // SetFace sets the font face.
 func (rt *RichText) SetFace(face *FontFace) {
+	if face == nil {
+		panic("FontFace cannot be nil")
+	}
+	rt.setFace(face)
+}
+
+func (rt *RichText) setFace(face *FontFace) {
 	if face == rt.faces[len(rt.faces)-1] {
 		return
 	}
@@ -437,41 +425,39 @@ func (rt *RichText) Add(face *FontFace, text string) *RichText {
 }
 
 // AddCanvas adds a canvas object that can have paths/images/texts.
-func (rt *RichText) AddCanvas(c *Canvas, valign VerticalAlign, alt string) *RichText {
-	if c == nil {
-		panic("Canvas cannot be nil")
-	}
+func (rt *RichText) AddCanvas(c *Canvas, valign VerticalAlign) *RichText {
 
 	width, height := c.Size()
-	rt.SetFace(nil)
+	face := rt.faces[len(rt.faces)-1]
+	rt.setFace(nil)
 	rt.WriteRune(rune(len(rt.objects)))
 	rt.objects = append(rt.objects, TextSpanObject{
 		Canvas: c,
 		Width:  width,
 		Height: height,
 		VAlign: valign,
-		Text:   alt,
 	})
+	rt.setFace(face)
 	return rt
 }
 
 // AddPath adds a path.
-func (rt *RichText) AddPath(path *Path, col color.RGBA, alt string) *RichText {
+func (rt *RichText) AddPath(path *Path, col color.RGBA) *RichText {
 	style := DefaultStyle
 	style.FillColor = col
 	bounds := path.Bounds()
 	c := New(bounds.X+bounds.W, bounds.Y+bounds.H)
 	c.RenderPath(path, style, Identity)
-	rt.AddCanvas(c, Baseline, alt)
+	rt.AddCanvas(c, Baseline)
 	return rt
 }
 
 // AddImage adds an image.
-func (rt *RichText) AddImage(img image.Image, res Resolution, alt string) *RichText {
+func (rt *RichText) AddImage(img image.Image, res Resolution) *RichText {
 	bounds := img.Bounds().Size()
 	c := New(float64(bounds.X)/res.DPMM(), float64(bounds.Y)/res.DPMM())
 	c.RenderImage(img, Identity.Scale(1.0/res.DPMM(), 1.0/res.DPMM()))
-	rt.AddCanvas(c, Baseline, alt)
+	rt.AddCanvas(c, Baseline)
 	return rt
 }
 
@@ -564,15 +550,19 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 			for i, r := range text {
 				obj := rt.objects[r]
 				ppem := float64(rt.defaultFace.Font.SFNT.Head.UnitsPerEm)
+				xadv, yadv := obj.Width, obj.Height
+				if rt.mode != HorizontalTB {
+					yadv = -yadv
+				}
 				glyphsString = append(glyphsString, canvasText.Glyph{
 					SFNT:     rt.defaultFace.Font.SFNT,
 					Size:     rt.defaultFace.Size,
 					Script:   script,
+					Vertical: rt.mode != HorizontalTB,
 					ID:       uint16(r),
 					Cluster:  clusterOffset + uint32(i),
-					XAdvance: int32(obj.Width * ppem / rt.defaultFace.Size),
-					YAdvance: int32(obj.Height * ppem / rt.defaultFace.Size),
-					Text:     obj.Text,
+					XAdvance: int32(xadv * ppem / rt.defaultFace.Size),
+					YAdvance: int32(yadv * ppem / rt.defaultFace.Size),
 				})
 			}
 		} else {
@@ -641,18 +631,21 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 		breaks = append(breaks, &canvasText.Breakpoint{Position: len(items) - 1, Width: lineWidth})
 	}
 
-	// remove penalties that were not chosen as breaks, this concatenates adjacent boxes/spans
+	// clean up items, remove penalties/glues that were not chosen as breaks, this concatenates adjacent boxes and thus spans
 	shift := 0 // break index shift
 	k := 0     // index into break
 	for i := 0; i < len(items); i++ {
 		if i == breaks[k].Position-shift {
+			// item marks a break
 			breaks[k].Position -= shift
 			k++
-		} else if items[i].Type == canvasText.PenaltyType || (0 < i && items[i].Type == canvasText.BoxType && items[i-1].Type == canvasText.BoxType) {
-			if items[i].Type == canvasText.BoxType {
-				items[i-1].Width += items[i].Width
-				items[i-1].Size += items[i].Size
-			}
+		} else if items[i].Type == canvasText.PenaltyType { // remove penalties
+			items = append(items[:i], items[i+1:]...)
+			shift++
+			i--
+		} else if 1 < i && items[i-1].Type == canvasText.BoxType && items[i].Type == canvasText.BoxType { // merge boxes (don't merge with indent box)
+			items[i-1].Width += items[i].Width
+			items[i-1].Size += items[i].Size
 			items = append(items[:i], items[i+1:]...)
 			shift++
 			i--
@@ -668,9 +661,9 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 	}
 	glyphs = append(glyphs, canvasText.Glyph{Cluster: uint32(len(vis))}) // makes indexing easier
 
-	i, j = 0, 0 // index into: glyphs, breaks/lines
-	atStart := true
-	x, y := 0.0, 0.0 // both positive toward the bottom right
+	i, j = 0, 0        // index into: glyphs, breaks/lines
+	x, y := 0.0, 0.0   // both positive toward the bottom right
+	paddingLeft := 0.0 // padding added to spans due to spaces around words
 	lineSpacing := 1.0 + lineStretch
 	if halign == Right {
 		x += width - breaks[j].Width
@@ -703,7 +696,12 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 				}
 			}
 
-			_, ascent, _, bottom := t.lines[j].Heights(rt.mode)
+			var ascent, bottom float64
+			if len(t.lines[j].spans) == 0 {
+				_, ascent, _, bottom = faces[glyphIndices.index(i)].heights(rt.mode)
+			} else {
+				_, ascent, _, bottom = t.lines[j].Heights(rt.mode)
+			}
 			if 0 < j {
 				ascent *= lineSpacing
 			}
@@ -726,7 +724,6 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 			} else if halign == Center || halign == Middle {
 				x += (width - breaks[j].Width) / 2.0
 			}
-			atStart = true
 		} else if item.Type == canvasText.BoxType {
 			// find index k into faces/texts
 			// find a,b index range into glyphs
@@ -769,8 +766,11 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 						for _, glyph := range glyphs[a:b] {
 							obj := rt.objects[glyph.ID]
 							if rt.mode == HorizontalTB {
+								obj.X = w
 								w += obj.Width
 							} else {
+								obj.X = -obj.Width / 2.0
+								obj.Y = -w - obj.Height
 								w += obj.Height
 							}
 							objects = append(objects, obj)
@@ -779,35 +779,46 @@ func (rt *RichText) ToText(width, height float64, halign, valign TextAlign, inde
 
 					s := string(logRunes[ar:br])
 					t.lines[j].spans = append(t.lines[j].spans, TextSpan{
-						x:         x + dx,
-						Width:     w,
-						Face:      face,
-						Text:      s,
-						Objects:   objects,
-						Glyphs:    glyphs[a:b],
-						Direction: direction,
-						Rotation:  rotation,
+						x:           x + dx,
+						Width:       w,
+						PaddingLeft: paddingLeft, // paddingRight is added when at glue
+						Face:        face,
+						Text:        s,
+						Objects:     objects,
+						Glyphs:      glyphs[a:b],
+						Direction:   direction,
+						Rotation:    rotation,
 					})
 					k = nextK
 
 					a = b
 					dx += w
+					paddingLeft = 0.0
 				}
-			}
-			if 0 < item.Size {
-				atStart = false
 			}
 			x += item.Width
-		} else if item.Type == canvasText.GlueType && !atStart {
-			width := item.Width
-			if 0.0 <= breaks[j].Ratio {
-				if !math.IsInf(item.Stretch, 0.0) {
-					width += breaks[j].Ratio * item.Stretch
+		} else if item.Type == canvasText.GlueType {
+			if j == 0 || position-1 != breaks[j-1].Position { // glue that is not at the start of the line
+				width := item.Width
+				if 0.0 <= breaks[j].Ratio {
+					if !math.IsInf(item.Stretch, 0.0) {
+						width += breaks[j].Ratio * item.Stretch
+					}
+				} else if !math.IsInf(item.Shrink, 0.0) {
+					width += breaks[j].Ratio * item.Shrink
 				}
-			} else if !math.IsInf(item.Shrink, 0.0) {
-				width += breaks[j].Ratio * item.Shrink
+				x += width
+
+				// set padding on previous/next span
+				if position+1 != breaks[j].Position { // not if space is at the beginning/end of line
+					k := glyphIndices.index(i)
+					if len(t.lines[j].spans) == 0 || k != glyphIndices.index(i-1) { // glue is at start of face span
+						paddingLeft += width
+					} else { // glue is in the middle or end of face span
+						t.lines[j].spans[len(t.lines[j].spans)-1].PaddingRight += width
+					}
+				}
 			}
-			x += width
 
 			// add spaces to previous span
 			if 0 < len(t.lines[j].spans) { // don't add if there is an empty first line
@@ -1023,7 +1034,7 @@ func (t *Text) WalkDecorations(callback func(col color.RGBA, deco *Path)) {
 				for i, deco := range active {
 					if span.Face.Color == deco.col && reflect.DeepEqual(deco.deco, spanDeco) {
 						// extend decoration
-						active[i].width = span.x + span.Width - active[i].x
+						active[i].width = span.x + span.Width + span.PaddingRight - active[i].x
 						if active[i].face.Size < span.Face.Size {
 							active[i].face = span.Face
 						}
@@ -1037,8 +1048,8 @@ func (t *Text) WalkDecorations(callback func(col color.RGBA, deco *Path)) {
 					active = append(active, decorationSpan{
 						deco:  spanDeco,
 						col:   span.Face.Color,
-						x:     span.x,
-						width: span.Width,
+						x:     span.x - span.PaddingLeft,
+						width: span.Width + span.PaddingLeft + span.PaddingRight,
 						face:  span.Face,
 					})
 				}
